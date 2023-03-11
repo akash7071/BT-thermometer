@@ -182,7 +182,7 @@ void gpioSetDisplayExtcomin(bool value)
 {
 
   GPIO_PinModeSet(gpioPortD, EXTCOMIN, gpioModePushPull, value);
-  LOG_INFO("\r\n1sec");
+  //LOG_INFO("\r\n1sec");
 }
 
 

@@ -18,7 +18,8 @@ void setUFEvent();
 void setCOMP1Event();
 
 void setI2CCompleteEvent();
-void stateMachine(sl_bt_msg_t *evt);
+void temperature_state_machine(sl_bt_msg_t *evt);
+void discovery_state_machine(sl_bt_msg_t *evt);
 
 
 #endif /* SRC_SCHEDULER_H_ */

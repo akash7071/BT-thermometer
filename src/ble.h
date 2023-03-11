@@ -32,6 +32,10 @@ typedef struct
     bool ok_to_send_htm_indications; // true when client enabled indications
     bool indication_in_flight; // true when an indication is in-flight
 
+
+    uint32_t thermometer_service_handle;
+    uint16_t thermometer_characteristic_handle;
+
     // values unique for client
 } ble_data_struct_t;
 
@@ -41,6 +45,7 @@ ble_data_struct_t* getBleDataPtr(void);
 
 
 void updateGATTDB(uint32_t actual_temp);
+void displayTemp();
 
 void handle_ble_event(sl_bt_msg_t *evt);
 //

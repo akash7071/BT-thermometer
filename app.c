@@ -226,14 +226,21 @@ SL_WEAK void app_init(void)
 
 
     gpioInit();                     //Initializing GPIO
+    enableI2CGPIO();
+
+#if DEVICE_IS_BLE_SERVER
     oscillatorInit();               //Initializing Oscillators
     timerInit();                    //Initializing letimer
     i2cInit();
-    enableI2CGPIO();
+
 
 
     NVIC_ClearPendingIRQ (LETIMER0_IRQn); //clear pending interrupts in LETIMER
     NVIC_EnableIRQ(LETIMER0_IRQn);        //configure NVIC to allow LETIMER interrupt
+#endif
+
+
+
 #if DELAY_TEST
     timerWaitUs_irq(100000);
 #endif
@@ -392,8 +399,16 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
   // For A5 uncomment the next 2 function calls
    handle_ble_event(evt); // put this code in ble.c/.h
 
+
+  #if DEVICE_IS_BLE_SERVER
+  // SERVER
   // sequence through states driven by events
-   stateMachine(evt);    // put this code in scheduler.c/.h
+   temperature_state_machine(evt); // put this code in scheduler.c/.h
+  #else
+  //CLIENT
+  // sequence through service and characteristic discovery
+  discovery_state_machine(evt); // put this code in src/scheduler.c/.h
+  #endif
 
 
 } // sl_bt_on_event()

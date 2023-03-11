@@ -8,6 +8,8 @@
 #include "sl_bt_api.h"
 #include "src/scheduler.h"
 #include "src/ble.h"
+#include "src/ble_device_type.h"
+#include "gatt_db.h"
 
 
 // DOS: If the caller needs these, shouldn't they be defined in the .h file ???? !!!!!
@@ -15,6 +17,10 @@
 #define COMP1_EVENT        2
 #define I2C_COMPLETE_EVENT 4
 
+#if !DEVICE_IS_BLE_SERVER
+static const uint8_t thermo_service[2] = { 0x09, 0x18 };
+static const uint8_t thermo_char[2] = { 0x1c, 0x2a };
+#endif
 ble_data_struct_t *ble_data2;
 
 enum myStates_t
@@ -25,6 +31,15 @@ enum myStates_t
 //  WAIT_FOR_TIMER_2,
 //  WAIT_FOR_READ_COMPLETE
 
+};
+
+
+enum myDiscoveryStates_t
+{
+  STANDBY,
+  PRIMARY_SERVICE,
+  DISCOVER_CHARACTERISTIC,
+  SET_NOTIFICATION
 };
 
 uint16_t nextEvent=1;
@@ -183,9 +198,9 @@ uint8_t getEvent()
 
 } // getEvent()
 
+#if DEVICE_IS_BLE_SERVER
 
-
-void stateMachine(sl_bt_msg_t *evt)
+void temperature_state_machine(sl_bt_msg_t *evt)
 {
   ble_data2=getBleDataPtr();
   if((SL_BT_MSG_ID(evt->header))==sl_bt_evt_system_external_signal_id && ble_data2->connection_open==1 &&
@@ -283,3 +298,92 @@ void stateMachine(sl_bt_msg_t *evt)
     }//if
 
 }
+
+#else
+
+void discovery_state_machine(sl_bt_msg_t *evt)
+{
+  sl_status_t sc; // status code
+  ble_data2=getBleDataPtr();
+  enum myDiscoveryStates_t currentState=PRIMARY_SERVICE;
+  static enum myDiscoveryStates_t nextState = PRIMARY_SERVICE;
+
+
+
+  currentState = nextState;
+
+  switch(currentState)
+  {
+
+  case PRIMARY_SERVICE:
+    if( (SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_opened_id) )
+      {
+
+      // Discover Health Thermometer service on the responder device
+        sc = sl_bt_gatt_discover_primary_services_by_uuid(evt->data.evt_connection_opened.connection,
+                                                          sizeof(thermo_service),
+                                                          (const uint8_t*)thermo_service);
+        if (sc != SL_STATUS_OK)
+         {
+           LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
+         }
+        nextState=DISCOVER_CHARACTERISTIC;
+      }
+    break;
+
+
+  case DISCOVER_CHARACTERISTIC:
+    if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
+      {
+        // Discover thermometer characteristic on the responder device
+        sc = sl_bt_gatt_discover_characteristics_by_uuid(evt->data.evt_gatt_procedure_completed.connection,
+                                                         ble_data2->thermometer_service_handle,
+                                                         sizeof(thermo_char),
+                                                         (const uint8_t*)thermo_char);
+        if (sc != SL_STATUS_OK)
+          {
+            LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
+          }
+        nextState=SET_NOTIFICATION;
+      }
+    else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
+      nextState=PRIMARY_SERVICE;
+    break;
+
+
+
+
+  case SET_NOTIFICATION:
+    if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
+      {
+        // enable indications
+          sc = sl_bt_gatt_set_characteristic_notification(evt->data.evt_gatt_procedure_completed.connection,
+                                              ble_data2->thermometer_characteristic_handle,
+                                              sl_bt_gatt_indication);
+
+          if (sc != SL_STATUS_OK)
+           {
+             LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
+           }
+        nextState=STANDBY;
+      }
+    else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
+          nextState=PRIMARY_SERVICE;
+    break;
+
+  case STANDBY:
+    if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
+      {
+
+
+        nextState=PRIMARY_SERVICE;
+      }
+    break;
+
+
+  }
+}
+#endif
+
+
+
