@@ -15,6 +15,8 @@
 void schedulerSetEvent3s();
 uint8_t getEvent();
 void setUFEvent();
+void SetEventPress();
+void SetEventRelease();
 void setCOMP1Event();
 
 void setI2CCompleteEvent();

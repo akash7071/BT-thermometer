@@ -30,7 +30,9 @@ typedef struct
     uint8_t connectionHandle;
     bool connection_open; // true when in an open connection
     bool ok_to_send_htm_indications; // true when client enabled indications
+    bool ok_to_send_button_indications; // true when client enabled indications for button
     bool indication_in_flight; // true when an indication is in-flight
+    bool isBonded;    //true when devices are bonded
 
 
     uint32_t thermometer_service_handle;

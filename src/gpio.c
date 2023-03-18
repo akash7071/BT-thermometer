@@ -35,8 +35,10 @@
 #include "em_gpio.h"
 #include <string.h>
 
+#include "sl_bt_api.h"
 #include "gpio.h"
-
+#include "src/ble.h"
+#include "src/scheduler.h"
 // Include logging specifically for this .c file
 #define INCLUDE_LOG_DEBUG 1
 #include "log.h"
@@ -51,6 +53,9 @@
 #define LED0_pin   4
 #define LED1_port  5
 #define LED1_pin   5
+#define BUTTON0_pin 6
+#define BUTTON1_pin 14
+#define BUTTON_port gpioPortF
 
 
 // PD10 traces to Expansion header 7
@@ -61,7 +66,8 @@
 #define SENSOR_ENABLE 15
 #define DISP_ENABLE 15
 #define EXTCOMIN 13
-
+bool buttonPressed=1;
+ble_data_struct_t *ble_data3;
 
 
 
@@ -71,12 +77,10 @@ void gpioInit()
 
   // Student Edit:
 
-	//GPIO_DriveStrengthSet(LED0_port, gpioDriveStrengthStrongAlternateStrong);
-	//GPIO_DriveStrengthSet(LED0_port, gpioDriveStrengthWeakAlternateWeak);
   GPIO_PinModeSet(LED1_port, LED1_pin, gpioModePushPull, false);
 	GPIO_PinModeSet(LED0_port, LED0_pin, gpioModePushPull, false);
-//	GPIO_PinModeSet(gpioPortC, 10, gpioModePushPull, false);
-//	GPIO_PinModeSet(gpioPortC, 11, gpioModePushPull, false);
+	GPIO_PinModeSet(BUTTON_port, BUTTON0_pin, gpioModeInputPullFilter, true);
+	GPIO_ExtIntConfig (BUTTON_port, BUTTON0_pin, BUTTON0_pin, true, true, true);
 
 
   // From my A8, use PD10 / Expansion header 7 to monitor timing with a logic analyzer
@@ -185,5 +189,36 @@ void gpioSetDisplayExtcomin(bool value)
   //LOG_INFO("\r\n1sec");
 }
 
+/**************************************************************************//**
+ * IRQ handler for GPIO external interrupt
+ *****************************************************************************/
+
+void GPIO_EVEN_IRQHandler()
+ {
+  //ble_data3=getBleDataPtr();
+
+  int flags=GPIO_IntGetEnabled();
+  GPIO_IntClear(flags);
+
+  if(buttonPressed==1)
+    {
+      SetEventPress();
+      buttonPressed=0;
+
+    }
+  else if(buttonPressed==0)
+    {
+      SetEventRelease();
+      buttonPressed=1;
+
+    }
+
+
+
+
+
+  //gpioLed0SetOn();
+
+}
 
 

@@ -11,6 +11,7 @@
 #define INCLUDE_LOG_DEBUG 1
 #include "src/log.h"
 #include "gatt_db.h"
+#include "gpio.h"
 
 #if DEVICE_IS_BLE_SERVER
 #define MINIMUM_ADVERTISING_INTERVAL 400
@@ -39,6 +40,9 @@
 
 #endif
 
+
+#define PBPRESS 5
+#define PBRELEASE 6
 uint32_t gattdbData;
 uint32_t actual_temp_local;
 uint8_t *char_value;
@@ -76,9 +80,12 @@ void handle_ble_event(sl_bt_msg_t *evt)
 #if DEVICE_IS_BLE_SERVER
     case sl_bt_evt_system_boot_id:
       {
+
+        sl_bt_sm_delete_bondings();
         ble_data.indication_in_flight=0;
         ble_data.connection_open=0;
         ble_data.ok_to_send_htm_indications=0;
+        ble_data.isBonded=0;
 
         sc = sl_bt_system_get_identity_address(&ble_data.myAddress, &ble_data.myAddressType);
         if (sc != SL_STATUS_OK)
@@ -143,13 +150,110 @@ void handle_ble_event(sl_bt_msg_t *evt)
         ble_data.indication_in_flight=0;
 
         displayPrintf(DISPLAY_ROW_CONNECTION, "Connected",0);//print current state
-
+        sl_bt_sm_configure(0b00001111, sm_io_capability_displayyesno);
 
         break;
       }// handle open event
 
+    case sl_bt_evt_sm_confirm_bonding_id:
+      sl_bt_sm_bonding_confirm(ble_data.connectionHandle,true);
+
+      break;
 
 
+
+    case sl_bt_evt_sm_confirm_passkey_id:
+      {
+      uint32_t key;
+      key=evt->data.evt_sm_confirm_passkey.passkey;
+
+      displayPrintf(DISPLAY_ROW_PASSKEY, "Passkey %d",key);//print current state
+      displayPrintf(DISPLAY_ROW_ACTION, "Confirm with PB0",0);//print current state
+
+      }
+      break;
+
+    case sl_bt_evt_sm_bonded_id:
+      {
+                displayPrintf(DISPLAY_ROW_PASSKEY, " ",0);//print current state
+                displayPrintf(DISPLAY_ROW_ACTION, " ",0);//print current state
+                displayPrintf(DISPLAY_ROW_CONNECTION, "Bonded",0);//print current state
+                ble_data.isBonded=1;
+      }
+      break;
+
+    case sl_bt_evt_system_external_signal_id:
+      {
+      int event=evt->data.evt_system_external_signal.extsignals;
+      if(event==PBPRESS )
+        {
+          displayPrintf(DISPLAY_ROW_9, "Button Pressed",0);//print current state
+          if(ble_data.isBonded==0)
+            {
+              sl_bt_sm_passkey_confirm(ble_data.connectionHandle,true);
+            }
+          else
+            {
+              uint8_t bond;
+                        if(ble_data.isBonded==1)
+                          bond=1;
+                        else
+                          bond=0;
+              sc = sl_bt_gatt_server_send_indication(ble_data.connectionHandle,
+                                                               gattdb_button_state,
+                                                               sizeof(bond),
+                                                               &bond);
+                        if (sc != SL_STATUS_OK)
+                                {
+                                  LOG_ERROR("sl_bt_advertiser_start() returned != 0 status=0x%04x", (unsigned int) sc);
+                                }
+            }
+
+
+
+        }
+      if(event==PBRELEASE && ble_data.isBonded==1)
+        {
+          displayPrintf(DISPLAY_ROW_9, "Button Released",0);//print current state
+          uint8_t bond;
+          if(ble_data.isBonded==1)
+            bond=1;
+          else
+            bond=0;
+
+          uint8_t button_state_buffer[2];
+          uint8_t *p = button_state_buffer;
+          uint32_t button_state_flt;
+          uint8_t flags =0x00;
+
+          UINT8_TO_BITSTREAM(p, flags);
+          button_state_flt = UINT32_TO_FLOAT(bond*1000, -3);
+          UINT32_TO_BITSTREAM(p, button_state_flt);
+
+
+          sl_status_t sc = sl_bt_gatt_server_write_attribute_value(
+                                                          gattdb_button_state, // handle from gatt_db.h
+                                                          0,                              // offset
+                                                          sizeof(bond), // length
+                                                          &bond);
+          if (sc != SL_STATUS_OK)
+                  {
+                    LOG_ERROR("sl_bt_advertiser_start() returned != 0 status=0x%04x", (unsigned int) sc);
+                  }
+
+          sc = sl_bt_gatt_server_send_indication(ble_data.connectionHandle,
+                                                 gattdb_button_state,
+                                                 sizeof(bond),
+                                                 &bond);
+          if (sc != SL_STATUS_OK)
+                  {
+                    LOG_ERROR("sl_bt_advertiser_start() returned != 0 status=0x%04x", (unsigned int) sc);
+                  }
+        }
+      }
+
+
+      break;
 
 
 
@@ -168,6 +272,7 @@ void handle_ble_event(sl_bt_msg_t *evt)
 
         displayPrintf(DISPLAY_ROW_TEMPVALUE, "",0);
         displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising",0);//print current state
+        sl_bt_sm_delete_bondings();
 
 
         break;
@@ -197,19 +302,40 @@ void handle_ble_event(sl_bt_msg_t *evt)
 
 
     case sl_bt_evt_gatt_server_characteristic_status_id:
-
+      if(evt->data.evt_gatt_server_characteristic_status.characteristic==gattdb_button_state)
+        {
           if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config )
-            {
+          {
             if(evt->data.evt_gatt_server_characteristic_status.client_config_flags==gatt_indication )
-              {
-                ble_data.ok_to_send_htm_indications=1;
-              }
+             {
+              ble_data.ok_to_send_button_indications=1;
+                gpioLed1SetOn();
+             }
             else if(evt->data.evt_gatt_server_characteristic_status.client_config_flags==gatt_disable )
               {
-                ble_data.ok_to_send_htm_indications=0;
+                ble_data.ok_to_send_button_indications=0;
+                gpioLed1SetOff();
               }
+          }
+        }
 
-            }
+      else if(evt->data.evt_gatt_server_characteristic_status.characteristic==gattdb_temperature_measurement)
+        {
+          if(evt->data.evt_gatt_server_characteristic_status.status_flags == sl_bt_gatt_server_client_config )
+            {
+              if(evt->data.evt_gatt_server_characteristic_status.client_config_flags==gatt_indication )
+                {
+                  ble_data.ok_to_send_htm_indications=1;
+                  gpioLed0SetOn();
+                }
+              else if(evt->data.evt_gatt_server_characteristic_status.client_config_flags==gatt_disable )
+                {
+                  ble_data.ok_to_send_htm_indications=0;
+                  gpioLed0SetOff();
+                }
+
+             }
+         }
 
         if(evt->data.evt_gatt_server_characteristic_status.status_flags==sl_bt_gatt_server_confirmation)
           {
@@ -433,7 +559,7 @@ void updateGATTDB(uint32_t actual_temp)
       && ble_data.indication_in_flight==0)
     {
       sc = sl_bt_gatt_server_send_indication(ble_data.connectionHandle,
-                                                   gattdb_temperature_measurement,
+                                             gattdb_temperature_measurement,
                                                    sizeof(htm_temperature_buffer),
                                                    &htm_temperature_buffer[0]);
       ble_data.indication_in_flight=1;
