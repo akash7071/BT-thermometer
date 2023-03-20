@@ -16,8 +16,8 @@
 #define UF_EVENT        1
 #define COMP1_EVENT        2
 #define I2C_COMPLETE_EVENT 4
-#define PBPRESS 5
-#define PBRELEASE 6
+#define PBPRESS 8
+#define PBRELEASE 16
 #if !DEVICE_IS_BLE_SERVER
 static const uint8_t thermo_service[2] = { 0x09, 0x18 };
 static const uint8_t thermo_char[2] = { 0x1c, 0x2a };
@@ -76,6 +76,17 @@ CORE_ENTER_CRITICAL();
   sl_bt_external_signal(PBPRESS);
   CORE_EXIT_CRITICAL();
 }
+
+/**************************************************************************//**
+ * Function to clear the event for button press
+ *****************************************************************************/
+void ClearEventPress()
+{CORE_DECLARE_IRQ_STATE;
+CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PBPRESS);
+  CORE_EXIT_CRITICAL();
+}
+
 
 
 /**************************************************************************//**

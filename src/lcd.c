@@ -78,7 +78,7 @@
 #include "log.h"
 
 
-#define SOFT_TIMER_DURATION 32768
+
 
 
 
@@ -320,11 +320,6 @@ void displayInit()
     // Students: Figure out what parameters to pass in to sl_bt_system_set_soft_timer() to
     //           set up a 1 second repeating soft timer and uncomment the following lines
 
-	  sl_status_t          timer_response;
-	  timer_response = sl_bt_system_set_soft_timer(SOFT_TIMER_DURATION,1,0);// set to 1s, handler 1 and recurring mode
-	  if (timer_response != SL_STATUS_OK) {
-	      LOG_ERROR("Timer soft error");
-     }
 
 
 
