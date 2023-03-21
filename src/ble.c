@@ -125,7 +125,7 @@ void handle_ble_event(sl_bt_msg_t *evt)
                        ble_data.myAddress.addr[4],
                        ble_data.myAddress.addr[5]);    //print server bt address
         displayPrintf(DISPLAY_ROW_CONNECTION, "Advertising",0); //print current state
-        displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A7",0);    //print assignment number
+        displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A8",0);    //print assignment number
         sl_bt_sm_configure(0b00001011, sm_io_capability_displayyesno);
         sl_status_t          timer_response;
         timer_response = sl_bt_system_set_soft_timer(SOFT_TIMER_DURATION,1,0);// set to 1s, handler 1 and recurring mode
@@ -460,7 +460,7 @@ void handle_ble_event(sl_bt_msg_t *evt)
                              ble_data.myAddress.addr[4],
                              ble_data.myAddress.addr[5]);    //print server bt address
               displayPrintf(DISPLAY_ROW_CONNECTION, "Discovering",0); //print current state
-              displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A7",0);    //print assignment number
+              displayPrintf(DISPLAY_ROW_ASSIGNMENT, "A8",0);    //print assignment number
               break;
               sl_status_t          timer_response;
               timer_response = sl_bt_system_set_soft_timer(SOFT_TIMER_DURATION,1,0);// set to 1s, handler 1 and recurring mode
