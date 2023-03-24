@@ -15,9 +15,12 @@
 void schedulerSetEvent3s();
 uint8_t getEvent();
 void setUFEvent();
-void SetEventPress();
-void SetEventRelease();
+void SetPB0Press();
+void SetPB0Release();
+void SetPB1Press();
+void SetPB1Release();
 void setCOMP1Event();
+void setEventToggleIndication();
 
 void setI2CCompleteEvent();
 void temperature_state_machine(sl_bt_msg_t *evt);

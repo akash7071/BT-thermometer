@@ -237,12 +237,17 @@ SL_WEAK void app_init(void)
 
     NVIC_ClearPendingIRQ (LETIMER0_IRQn); //clear pending interrupts in LETIMER
     NVIC_EnableIRQ(LETIMER0_IRQn);        //configure NVIC to allow LETIMER interrupt
-    // Enable interrupt handling for even and odd numbered pins
-    NVIC_ClearPendingIRQ (GPIO_EVEN_IRQn); //clear pending interrupts in LETIMER
-    NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+
 #endif
 
+    // Enable interrupt handling for even and odd numbered pins
+    NVIC_ClearPendingIRQ (GPIO_EVEN_IRQn); //clear pending interrupts in GPIO
+    NVIC_EnableIRQ(GPIO_EVEN_IRQn);
 
+
+    // Enable interrupt handling for even and odd numbered pins
+    NVIC_ClearPendingIRQ (GPIO_ODD_IRQn); //clear pending interrupts in GPIO
+    NVIC_EnableIRQ(GPIO_ODD_IRQn);
 
 #if DELAY_TEST
     timerWaitUs_irq(100000);

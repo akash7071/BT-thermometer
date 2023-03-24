@@ -16,11 +16,18 @@
 #define UF_EVENT        1
 #define COMP1_EVENT        2
 #define I2C_COMPLETE_EVENT 4
-#define PBPRESS 8
-#define PBRELEASE 16
+#define PB0PRESS 8
+#define PB0RELEASE 16
+#define PB1PRESS 32
+#define PB1RELEASE 128
+#define TOGGLEINDICATION 64
+
+
 #if !DEVICE_IS_BLE_SERVER
 static const uint8_t thermo_service[2] = { 0x09, 0x18 };
 static const uint8_t thermo_char[2] = { 0x1c, 0x2a };
+static const uint8_t button_service[16]={0x89,0x62,0x13,0x2D,0x2A,0x65,0xEC,0x87,0x3E,0x43,0xC8,0x38,0x01,0x00,0x00,0x00};
+static const uint8_t button_char[16]=   {0x89,0x62,0x13,0x2D,0x2A,0x65,0xEC,0x87,0x3E,0x43,0xC8,0x38,0x02,0x00,0x00,0x00};
 #endif
 ble_data_struct_t *ble_data2;
 
@@ -38,9 +45,12 @@ enum myStates_t
 enum myDiscoveryStates_t
 {
   STANDBY,
-  PRIMARY_SERVICE,
-  DISCOVER_CHARACTERISTIC,
-  SET_NOTIFICATION
+  PRIMARY_SERVICE_THERMO,
+  DISCOVER_CHARACTERISTIC_THERMO,
+  SET_NOTIFICATION_THERMO,
+  PRIMARY_SERVICE_BUTTON,
+  DISCOVER_CHARACTERISTIC_BUTTON,
+  SET_NOTIFICATION_BUTTON
 };
 
 uint16_t nextEvent=1;
@@ -70,20 +80,10 @@ uint16_t eventLog=0;
 /**************************************************************************//**
  * Function to set the event for button press
  *****************************************************************************/
-void SetEventPress()
+void SetPB0Press()
 {CORE_DECLARE_IRQ_STATE;
 CORE_ENTER_CRITICAL();
-  sl_bt_external_signal(PBPRESS);
-  CORE_EXIT_CRITICAL();
-}
-
-/**************************************************************************//**
- * Function to clear the event for button press
- *****************************************************************************/
-void ClearEventPress()
-{CORE_DECLARE_IRQ_STATE;
-CORE_ENTER_CRITICAL();
-  sl_bt_external_signal(PBPRESS);
+  sl_bt_external_signal(PB0PRESS);
   CORE_EXIT_CRITICAL();
 }
 
@@ -92,11 +92,49 @@ CORE_ENTER_CRITICAL();
 /**************************************************************************//**
  * Function to set the event for button release
  *****************************************************************************/
-void SetEventRelease()
+void SetPB0Release()
 {
   CORE_DECLARE_IRQ_STATE;
   CORE_ENTER_CRITICAL();
-  sl_bt_external_signal(PBRELEASE);
+  sl_bt_external_signal(PB0RELEASE);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+/**************************************************************************//**
+ * Function to set the event for button press
+ *****************************************************************************/
+void SetPB1Press()
+{CORE_DECLARE_IRQ_STATE;
+CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB1PRESS);
+  CORE_EXIT_CRITICAL();
+}
+
+
+
+/**************************************************************************//**
+ * Function to set the event for button release
+ *****************************************************************************/
+void SetPB1Release()
+{
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(PB1RELEASE);
+  CORE_EXIT_CRITICAL();
+}
+
+
+/**************************************************************************//**
+ * Function to set the event for indication toggle
+ *****************************************************************************/
+void setEventToggleIndication()
+{
+  CORE_DECLARE_IRQ_STATE;
+  CORE_ENTER_CRITICAL();
+  sl_bt_external_signal(TOGGLEINDICATION);
+  GPIO_PinOutToggle(5,4);
   CORE_EXIT_CRITICAL();
 }
 
@@ -341,8 +379,8 @@ void discovery_state_machine(sl_bt_msg_t *evt)
 {
   sl_status_t sc; // status code
   ble_data2=getBleDataPtr();
-  enum myDiscoveryStates_t currentState=PRIMARY_SERVICE;
-  static enum myDiscoveryStates_t nextState = PRIMARY_SERVICE;
+  enum myDiscoveryStates_t currentState=PRIMARY_SERVICE_THERMO;
+  static enum myDiscoveryStates_t nextState = PRIMARY_SERVICE_THERMO;
 
 
 
@@ -351,7 +389,9 @@ void discovery_state_machine(sl_bt_msg_t *evt)
   switch(currentState)
   {
 
-  case PRIMARY_SERVICE:
+
+
+  case PRIMARY_SERVICE_THERMO:
     if( (SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_opened_id) )
       {
 
@@ -363,12 +403,13 @@ void discovery_state_machine(sl_bt_msg_t *evt)
          {
            LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
          }
-        nextState=DISCOVER_CHARACTERISTIC;
+        else
+          nextState=DISCOVER_CHARACTERISTIC_THERMO;
       }
     break;
 
 
-  case DISCOVER_CHARACTERISTIC:
+  case DISCOVER_CHARACTERISTIC_THERMO:
     if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
       {
         // Discover thermometer characteristic on the responder device
@@ -380,16 +421,18 @@ void discovery_state_machine(sl_bt_msg_t *evt)
           {
             LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
           }
-        nextState=SET_NOTIFICATION;
+        else
+          nextState=SET_NOTIFICATION_THERMO;
       }
     else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
-      nextState=PRIMARY_SERVICE;
+      nextState=PRIMARY_SERVICE_THERMO;
+
     break;
 
 
 
 
-  case SET_NOTIFICATION:
+  case SET_NOTIFICATION_THERMO:
     if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
       {
         // enable indications
@@ -399,20 +442,81 @@ void discovery_state_machine(sl_bt_msg_t *evt)
 
           if (sc != SL_STATUS_OK)
            {
-             LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid() returned != 0 status=0x%04x", (unsigned int) sc);
+             LOG_ERROR("sl_bt_gatt_set_characteristic_notification() returned != 0 status=0x%04x", (unsigned int) sc);
            }
-        nextState=STANDBY;
+        nextState=PRIMARY_SERVICE_BUTTON;
       }
     else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
-          nextState=PRIMARY_SERVICE;
+          nextState=PRIMARY_SERVICE_THERMO;
     break;
+
+
+  case PRIMARY_SERVICE_BUTTON:
+      if( (SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id) )
+        {
+
+        // Discover Health Thermometer service on the responder device
+          sc = sl_bt_gatt_discover_primary_services_by_uuid(evt->data.evt_gatt_procedure_completed.connection,
+                                                            sizeof(button_service),
+                                                            (const uint8_t*)button_service);
+          if (sc != SL_STATUS_OK)
+           {
+             LOG_ERROR("sl_bt_gatt_discover_primary_services_by_uuid button() returned != 0 status=0x%04x", (unsigned int) sc);
+           }
+          else
+            nextState=DISCOVER_CHARACTERISTIC_BUTTON;
+        }
+      break;
+
+
+    case DISCOVER_CHARACTERISTIC_BUTTON:
+      if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
+        {
+          // Discover thermometer characteristic on the responder device
+          sc = sl_bt_gatt_discover_characteristics_by_uuid(evt->data.evt_gatt_procedure_completed.connection,
+                                                           ble_data2->buttonState_service_handle,
+                                                           sizeof(button_char),
+                                                           (const uint8_t*)button_char);
+          if (sc != SL_STATUS_OK)
+            {
+              LOG_ERROR("sl_bt_gatt_discover_characteristics_by_uuid button() returned != 0 status=0x%04x", (unsigned int) sc);
+            }
+          else
+            nextState=SET_NOTIFICATION_BUTTON;
+        }
+      else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
+        nextState=PRIMARY_SERVICE_BUTTON;
+
+      break;
+
+    case SET_NOTIFICATION_BUTTON:
+      if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_gatt_procedure_completed_id)
+        {
+          // enable indications
+            sc = sl_bt_gatt_set_characteristic_notification(evt->data.evt_gatt_procedure_completed.connection,
+                                                ble_data2->buttonState_characteristic_handle,
+                                                sl_bt_gatt_indication);
+
+            if (sc != SL_STATUS_OK)
+             {
+               LOG_ERROR("sl_bt_gatt_set_characteristic_notification button() returned != 0 status=0x%04x", (unsigned int) sc);
+             }
+            else
+              {
+                nextState=STANDBY;
+                ble_data2->ok_to_send_button_indications=1;
+              }
+        }
+      else if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
+            nextState=PRIMARY_SERVICE_THERMO;
+      break;
 
   case STANDBY:
     if(SL_BT_MSG_ID(evt->header)==sl_bt_evt_connection_closed_id)
       {
 
 
-        nextState=PRIMARY_SERVICE;
+        nextState=PRIMARY_SERVICE_THERMO;
       }
     break;
 

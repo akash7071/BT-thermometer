@@ -38,6 +38,9 @@ typedef struct
     uint32_t thermometer_service_handle;
     uint16_t thermometer_characteristic_handle;
 
+    uint32_t buttonState_service_handle;
+    uint16_t buttonState_characteristic_handle;
+
     // values unique for client
 } ble_data_struct_t;
 
